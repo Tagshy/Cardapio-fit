@@ -1,5 +1,5 @@
 // Mude este número a cada nova versão do app (o Claude faz isso por você).
-const VERSION = '1';
+const VERSION = '2';
 const CACHE = 'cardapio-fit-' + VERSION;
 const SHELL = ['./', 'index.html', 'manifest.webmanifest', 'icon-192.png', 'icon-512.png', 'icon-maskable-512.png'];
 
