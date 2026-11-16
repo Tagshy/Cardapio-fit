@@ -169,6 +169,13 @@ const AISLES=['Proteínas e ovos','Hortifruti','Laticínios e frios','Grãos, ma
 const KEY='cardapio-fit-v1';
 let S={tab:'rot',avoid:[],obStep:1,name:'',registered:false,ex:{},kx:{},days:{},dopen:{},ob:{},wdrink:{},pextra:{},wrem:{on:true,from:7,to:21,last:''},prof:{sex:'M',age:'',kg:'',cm:'',goal:'',waist:'',act:'1.2',rate:'0.5',health:false},wlog:[],notes:{},swap:{},ate:{},q:'',bq:'',col:'',flt:'',week:1,scope:1,bmode:'all',plan:{},fav:{},got:{},extra:[],confirmClear:false};
 try{const x=JSON.parse(localStorage.getItem(KEY)||'null');if(x)Object.assign(S,x,{obStep:1,tab:'rot',q:'',bq:'',col:'',flt:'',confirmClear:false})}catch(e){}
+(function migrar(){try{
+  if(!S.registered)return;const k=parseFloat(String(S.prof.kg).replace(',','.'));if(!(k>=30&&k<=400))return;
+  const L=[...S.wlog].sort((a,b)=>a.d<b.d?-1:1);
+  if(!L.length){const n=new Date();S.wlog=[{d:n.getFullYear()+'-'+String(n.getMonth()+1).padStart(2,'0')+'-'+String(n.getDate()).padStart(2,'0'),kg:k}];return}
+  const last=L[L.length-1];if(Math.abs(last.kg-k)<0.01)return;
+  if(L.length===1)last.kg=k;else S.prof.kg=String(last.kg);
+}catch(e){}})();
 function save(){try{localStorage.setItem(KEY,JSON.stringify({avoid:S.avoid,name:S.name,registered:S.registered,ex:S.ex,kx:S.kx,days:S.days,wdrink:S.wdrink,pextra:S.pextra,wrem:S.wrem,prof:S.prof,wlog:S.wlog,notes:S.notes,swap:S.swap,ate:S.ate,week:S.week,scope:S.scope,bmode:S.bmode,plan:S.plan,fav:S.fav,got:S.got,extra:S.extra}))}catch(e){}}
 const $=s=>document.querySelector(s);
 const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
@@ -373,6 +380,8 @@ function avAdd(t){t=(t||'').trim();if(!t)return false;if(S.avoid.some(x=>fold(x)
 const ACT=[['1.2','Sedentário','pouco ou nenhum exercício'],['1.375','Leve','exercício 1 a 3 dias por semana'],['1.55','Moderado','exercício 3 a 5 dias por semana'],['1.725','Intenso','exercício 6 a 7 dias por semana'],['1.9','Muito intenso','trabalho físico pesado ou treino 2x ao dia']];
 const RATE=[['0.25','Suave','0,25 kg por semana'],['0.5','Moderado','0,5 kg por semana'],['0.75','Firme','0,75 kg por semana'],['1','Máximo','1 kg por semana']];
 const nf=(v,d=0)=>Number(v).toLocaleString('pt-BR',{minimumFractionDigits:d,maximumFractionDigits:d});
+function setWeight(v){const k=dkey();S.wlog=S.wlog.filter(x=>x.d!==k);S.wlog.push({d:k,kg:v});S.prof.kg=String(v)}
+function syncKg(){const L=[...S.wlog].sort((a,b)=>a.d<b.d?-1:1);if(L.length)S.prof.kg=String(L[L.length-1].kg)}
 function pnum(x){const n=parseFloat(String(x).replace(',','.'));return isFinite(n)?n:NaN}
 function calc(){
   const p=S.prof,kg=pnum(p.kg),age=pnum(p.age);let cm=pnum(p.cm);if(cm<3)cm*=100;
@@ -498,7 +507,7 @@ function formHtml(){const p=S.prof;return `${inp('pf-name','Nome',S.name,'seu no
 function viewPeso(){
   const c=calc();
   return `<header class="top" style="display:block"><h1>Peso</h1><div class="sub">Seu progresso diário</div></header>
-  ${c?dayCard(c)+progressCard(c):'<div class="empty">Complete seu cadastro para ver o progresso.</div>'}
+  <div id="pdash">${c?dayCard(c)+progressCard(c):'<div class="empty">Complete seu cadastro para ver o progresso.</div>'}</div>
   <details class="day" data-dt="avoid" ${S.dopen.avoid?'open':''}><summary>Restrições alimentares${S.avoid.length?' ('+S.avoid.length+')':''}</summary>${avEditor()}</details>
   <details class="day" data-dt="metas" ${S.dopen.metas?'open':''}><summary>Minhas metas diárias</summary><div id="pres">${resHtml()}</div></details>
   <details class="day" data-dt="edit" ${S.dopen.edit?'open':''}><summary>Editar cadastro e ajustes</summary>${formHtml()}</details>
@@ -536,7 +545,7 @@ function submitOnb(){
 function finishOnb(){
   const o=S.obv,goal=o.goal,kg=o.kg;
   S.name=o.name;Object.assign(S.prof,{sex:o.sex,age:String(o.age),kg:String(kg),cm:String(o.cm),goal:isNaN(goal)?'':String(goal)});
-  const k=dkey();S.wlog=S.wlog.filter(x=>x.d!==k);S.wlog.push({d:k,kg});
+  setWeight(kg);
   S.registered=true;S.ob={};S.obStep=1;save();const el=$('#onb');if(el)el.remove();document.documentElement.style.overflow='';S.tab='rot';render();scrollTo(0,0);toast('Cadastro concluído');
 }
 
@@ -647,8 +656,8 @@ document.addEventListener('click',e=>{
     const dk=dkey(),M=key==='ex'?S.ex:S.kx;(M[dk]=M[dk]||[]).push({t:t||(key==='ex'?'Exercício':'Comida'),k:Math.round(k)});save();render();return}
   if('xrm' in d){const [key,i]=d.xrm.split(':'),M=key==='ex'?S.ex:S.kx,dk=dkey();(M[dk]||[]).splice(+i,1);save();render();return}
   if('tab' in d){S.tab=d.tab;render();scrollTo(0,0);return}
-  if('wadd' in d){const v=pnum($('#wkg').value);if(v>=30&&v<=400){const k=dkey();S.wlog=S.wlog.filter(x=>x.d!==k);S.wlog.push({d:k,kg:v});save();render()}else toast('Digite um peso válido');return}
-  if('wrm' in d){S.wlog=S.wlog.filter(x=>x.d!==d.wrm);save();render();return}
+  if('wadd' in d){const v=pnum($('#wkg').value);if(v>=30&&v<=400){setWeight(v);save();render()}else toast('Digite um peso válido');return}
+  if('wrm' in d){S.wlog=S.wlog.filter(x=>x.d!==d.wrm);syncKg();save();render();return}
   if('ate' in d){const k=dkey()+d.ate;S.ate[k]?delete S.ate[k]:S.ate[k]=1;save();render();return}
   if('swapm' in d){const k=dkey()+d.swapm;S.swap[k]=(S.swap[k]||0)+1;save();render();return}
   if('got' in d){const k=gk(d.got);S.got[k]?delete S.got[k]:S.got[k]=1;S.confirmClear=false;save();render();return}
@@ -667,8 +676,8 @@ document.addEventListener('click',e=>{
   if('copyweek' in d){const n=S.week%4+1;S.plan[n]=JSON.parse(JSON.stringify(pw(S.week)));S.week=n;save();render();toast('Copiada para a semana '+n);return}
 });
 function fallback(txt){const ta=document.createElement('textarea');ta.value=txt;ta.style.cssText='position:fixed;inset:20% 5% auto;width:90%;height:40%;z-index:99';document.body.appendChild(ta);ta.select();toast('Selecione e copie o texto');ta.addEventListener('blur',()=>ta.remove())}
-document.addEventListener('input',e=>{if(e.target.id==='av-q'){const b=e.target.closest('.avedit').querySelector('.av-sug');avSuggest(b,e.target.value)}if(e.target.id==='q'){S.q=e.target.value;render()}if(e.target.id==='bq'){S.bq=e.target.value;render()}if(e.target.dataset&&e.target.dataset.pf){const f=e.target.dataset.pf;if(f==='name')S.name=e.target.value;else S.prof[f]=e.target.type==='checkbox'?e.target.checked:e.target.value;save();const pr=$('#pres');if(pr)pr.innerHTML=resHtml()}if(e.target.dataset&&e.target.dataset.ob){S.ob[e.target.dataset.ob]=e.target.value}if(e.target.id==='note'){S.notes[dkey()]=e.target.value;save()}});
-document.addEventListener('change',e=>{if(e.target.id==='wrem-on'){S.wrem.on=e.target.checked;save();toast(S.wrem.on?'Lembretes ligados':'Lembretes desligados');return}if(e.target.type==='checkbox'&&e.target.dataset.pf){S.prof.health=e.target.checked;save();const pr=$('#pres');if(pr)pr.innerHTML=resHtml()}});
+document.addEventListener('input',e=>{if(e.target.id==='av-q'){const b=e.target.closest('.avedit').querySelector('.av-sug');avSuggest(b,e.target.value)}if(e.target.id==='q'){S.q=e.target.value;render()}if(e.target.id==='bq'){S.bq=e.target.value;render()}if(e.target.dataset&&e.target.dataset.pf){const f=e.target.dataset.pf;if(f==='name')S.name=e.target.value;else S.prof[f]=e.target.type==='checkbox'?e.target.checked:e.target.value;if(f==='kg'){const v=pnum(e.target.value);if(v>=30&&v<=400)setWeight(v)}save();const pr=$('#pres');if(pr)pr.innerHTML=resHtml();const pd=$('#pdash');if(pd){const c=calc();pd.innerHTML=c?dayCard(c)+progressCard(c):''}}if(e.target.dataset&&e.target.dataset.ob){S.ob[e.target.dataset.ob]=e.target.value}if(e.target.id==='note'){S.notes[dkey()]=e.target.value;save()}});
+document.addEventListener('change',e=>{if(e.target.id==='wrem-on'){S.wrem.on=e.target.checked;save();toast(S.wrem.on?'Lembretes ligados':'Lembretes desligados');return}if(e.target.type==='checkbox'&&e.target.dataset.pf){S.prof.health=e.target.checked;save();const pr=$('#pres');if(pr)pr.innerHTML=resHtml();const pd=$('#pdash');if(pd){const c=calc();pd.innerHTML=c?dayCard(c)+progressCard(c):''}}});
 document.addEventListener('toggle',e=>{const k=e.target.dataset&&e.target.dataset.dt;if(k)S.dopen[k]=e.target.open},true);
 document.addEventListener('keydown',e=>{if(e.key==='Enter'&&e.target.id==='av-q'){e.preventDefault();e.target.closest('.avedit').querySelector('[data-avadd=""]').click()}if(e.key==='Enter'&&e.target.id==='ext'){document.querySelector('[data-exadd]').click()}});
 render();
